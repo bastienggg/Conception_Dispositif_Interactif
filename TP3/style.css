@@ -1,0 +1,27 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body,
+html {
+  overflow: hidden;
+  font-family: "Poppins", sans-serif;
+}
+
+.webgl {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+#vitesse {
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  z-index: 100;
+  padding: 10px;
+  border-radius: 5px;
+}
