@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from 'three/addons/libs/stats.module.js';
 
+gsap.registerPlugin(CustomEase)
+
 const canvas = document.querySelector('.webgl');
 const scene = new THREE.Scene();
 
@@ -73,10 +75,8 @@ ground.position.y = -2.7; // Adjust position to be below the figure
 ground.receiveShadow = true; // Enable shadows for the ground
 scene.add(ground);
 
-
-
 // Add fog to the scene
-scene.fog = new THREE.Fog(0x808080, 10, 50);
+// scene.fog = new THREE.Fog(0x808080, 10, 50);
 
 // Material
 const material = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -141,7 +141,10 @@ class Figure {
         this.head = new THREE.Group();
 
         // Create the main cube of the head and add to the group
-        const geometry = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+
+        // const geometry = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+
+        const geometry = new THREE.SphereGeometry(0.8, 32, 32);
         const headMain = new THREE.Mesh(geometry, this.headMaterial);
         headMain.castShadow = true; // Enable shadows for the head
         this.head.add(headMain);
@@ -154,6 +157,28 @@ class Figure {
 
         // Add the eyes
         this.createEyes();
+    }
+
+    createAntennas() {
+        const antennaHeight = 1.5; // Increase the height of the antennas
+        const antennaGeometry = new THREE.CylinderGeometry(0.05, 0.05, antennaHeight, 32);
+        const antennaMaterial = new THREE.MeshLambertMaterial({ color: 0x44445c });
+
+        for (let i = 0; i < 2; i++) {
+            const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+            antenna.castShadow = true; // Enable shadows for the antennas
+            const m = i % 2 === 0 ? 1 : -1;
+
+            // Position the antenna relative to the head
+            antenna.position.x = 0.3 * m;
+            antenna.position.y = 0.5;
+
+            // Rotate the antenna to be oriented slightly outward
+            antenna.rotation.z = degreesToRadians(-15 * m);
+
+            // Add the antenna to the head
+            this.head.add(antenna);
+        }
     }
 
     createArms() {
@@ -206,6 +231,41 @@ class Figure {
         eyes.position.z = 0.7;
     }
 
+    createButtons() {
+        const buttons = new THREE.Group();
+        const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const material = new THREE.MeshLambertMaterial({ color: 0x4d82ec });
+
+        for (let i = 0; i < 2; i++) {
+            const button = new THREE.Mesh(geometry, material);
+            button.castShadow = true; // Enable shadows for the buttons
+            buttons.add(button);
+            button.position.x = -0.25 + i * 0.5; // Increase the horizontal spacing between the buttons
+        }
+
+        this.body.add(buttons);
+        buttons.position.y = 0.42; // Adjust the vertical position of the buttons
+        buttons.position.z = 0.55; // Position the buttons in front of the body
+    }
+
+
+    createButtons2() {
+        const buttons = new THREE.Group();
+        const geometry = new THREE.SphereGeometry(0.4, 16, 16);
+        const material = new THREE.MeshLambertMaterial({ color: 0x4d82ec });
+
+        for (let i = 0; i < 2; i++) {
+            const button = new THREE.Mesh(geometry, material);
+            button.castShadow = true; // Enable shadows for the buttons
+            buttons.add(button);
+            button.position.x = -0.25 + i * 0.5; // Increase the horizontal spacing between the buttons
+        }
+
+        this.body.add(buttons);
+        buttons.position.y = -0.42; // Adjust the vertical position of the buttons
+        buttons.position.z = -0.5; // Position the buttons in front of the body
+    }
+
     createLegs() {
         const legs = new THREE.Group();
         const geometry = new THREE.BoxGeometry(0.25, 0.4, 0.25);
@@ -225,7 +285,7 @@ class Figure {
         this.body.add(legs);
     }
 
-    bounce() {
+    update() {
         this.group.rotation.y = this.params.ry;
         this.group.position.y = this.params.y;
         this.arms.forEach((arm, index) => {
@@ -237,33 +297,181 @@ class Figure {
     init() {
         this.createBody();
         this.createHead();
+        this.createAntennas(); // Add antennas to the figure
         this.createArms();
+        // this.createButtons()
+        // this.createButtons2()
     }
 }
 
 const figure = new Figure();
 figure.init();
 
+// Create a GSAP timeline for the jump animation
+const jumpTimeline = gsap.timeline({ paused: true });
+
+jumpTimeline.to(figure.params, {
+    y: 0,
+    armRotation: degreesToRadians(90),
+    duration: 0.25,
+    ease: CustomEase.create("custom", "M0,0 C0.177,-0.888 0.335,0.455 0.46,0.632 0.609,0.843 0.818,1.001 1,1 "),
+    yoyo: true,
+    repeat: 1,
+    onComplete: () => {
+        figure.params.armRotation = 0; // Reset arm rotation after jump
+    }
+});
+
+
+// Update figure position based on walk speed and direction
+gsap.ticker.add(() => {
+    if (figure.params.walking) {
+        figure.params.x += figure.params.walkSpeed * Math.sin(figure.params.ry);
+        figure.params.z += figure.params.walkSpeed * Math.cos(figure.params.ry);
+    }
+});
+
+// Add event listener for the space key
+window.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' && !jumpTimeline.isActive()) {
+        jumpTimeline.restart();
+    }
+});
+
+const keys = {};
+
+window.addEventListener('keydown', (event) => {
+    keys[event.code] = true;
+
+    if (keys['ArrowLeft']) {
+        gsap.to(figure.params, {
+            ry: figure.params.ry + degreesToRadians(65),
+            duration: 0.5,
+            ease: "power1.out"
+        });
+    }
+    if (keys['ArrowRight']) {
+        gsap.to(figure.params, {
+            ry: figure.params.ry - degreesToRadians(65),
+            duration: 0.5,
+            ease: "power1.out"
+        });
+    }
+    if (keys['ArrowUp'] && !figure.params.walking) {
+        figure.params.walking = true;
+        walkTimeline.play();
+    }
+    if (event.code === 'Space' && !jumpTimeline.isActive()) {
+        jumpTimeline.restart();
+    }
+});
+
+window.addEventListener('keyup', (event) => {
+    keys[event.code] = false;
+
+    if (event.code === 'ArrowUp' && figure.params.walking) {
+        figure.params.walking = false;
+        walkTimeline.pause();
+    }
+});
+
 gsap.set(figure.params, {
     y: -1.5
 });
 
-gsap.to(figure.params, {
-    ry: degreesToRadians(360),
-    repeat: -1,
-    duration: 20
+// Add walk speed to figure parameters
+figure.params.walkSpeed = 0.05;
+figure.params.walking = false;
+figure.params.armRotation = 0;
+
+// Create a GSAP timeline for the walk animation
+const walkTimeline = gsap.timeline({ paused: true, repeat: -1 });
+
+walkTimeline.to(figure.params, {
+    armRotation: degreesToRadians(45),
+    duration: 0.25,
+    ease: "power1.inOut",
+    yoyo: true,
+    repeat: -1
+}, 0);
+
+// Update figure position based on walk speed and direction
+gsap.ticker.add(() => {
+    if (figure.params.walking) {
+        figure.group.position.x += figure.params.walkSpeed * Math.sin(figure.params.ry);
+        figure.group.position.z += figure.params.walkSpeed * Math.cos(figure.params.ry);
+    }
 });
 
-gsap.to(figure.params, {
-    y: 0,
-    armRotation: degreesToRadians(90),
-    repeat: -1,
+
+// Create a GSAP timeline for the idle animation
+const idleTimeline = gsap.timeline({ repeat: -1, yoyo: true });
+
+idleTimeline.to(figure.head.children[1].children[0].scale, {
+    y: 0.2,
+    duration: 1,
+    ease: "power1.inOut",
     yoyo: true,
-    duration: 0.5
+    repeat: -1,
+}, 0);
+
+// Rotate the head slightly on the z-axis in the idle animation
+idleTimeline.to(figure.head.rotation, {
+    z: degreesToRadians(5),
+    duration: 0.5,
+    ease: "power1.inOut"
+}, 0).to(figure.head.rotation, {
+    z: degreesToRadians(-5),
+    duration: 0.5,
+    ease: "power1.inOut"
+}, 0.5);
+
+// Add event listener for shooting projectile
+window.addEventListener('keydown', (event) => {
+    if (event.code === 'KeyF') {
+        shootProjectile();
+    }
+});
+
+const shootProjectile = () => {
+    const projectileGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const projectileMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+    const projectile = new THREE.Mesh(projectileGeometry, projectileMaterial);
+    projectile.castShadow = true;
+
+    // Position the projectile at the right arm
+    const rightArm = figure.arms[1];
+    projectile.position.set(
+        rightArm.position.x + figure.group.position.x,
+        rightArm.position.y + figure.group.position.y,
+        rightArm.position.z + figure.group.position.z
+    );
+
+    scene.add(projectile);
+
+    // Animate the projectile
+    gsap.to(projectile.position, {
+        x: projectile.position.x + 40 * Math.sin(figure.params.ry),
+        z: projectile.position.z + 40 * Math.cos(figure.params.ry),
+        duration: 1,
+        ease: "power1.inOut",
+        onComplete: () => {
+            scene.remove(projectile); // Remove the projectile after animation
+        }
+    });
+};
+
+// Pause idle animation when jumping
+jumpTimeline.eventCallback("onStart", () => {
+    idleTimeline.pause();
+});
+
+jumpTimeline.eventCallback("onComplete", () => {
+    idleTimeline.resume();
 });
 
 gsap.ticker.add(() => {
-    figure.bounce();
+    figure.update();
     controls.update(); // Update controls
     render();
 });
